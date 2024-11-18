@@ -31,6 +31,8 @@ typedef struct {
 	void (*print)(void *);
 	void (*destroy)(void *);
 
+	size_t extraBytes;
+
 	rbnode root;
 	rbnode nil;
 
@@ -48,6 +50,7 @@ typedef struct {
 #define RB_APPLY(rbt, f, c, o) rbapply_node((rbt), (rbt)->root.left, (f), (c), (o))
 
 rbtree *rb_create(int (*compare_func)(const void *, const void *), void (*destroy_func)(void *));
+rbtree *rb_create_ex(size_t extraBytes, int(*compare_func)(const void *, const void *), void(*destroy_func)(void *));
 void rb_destroy(rbtree *rbt);
 
 rbnode *rb_find(rbtree *rbt, void *data);

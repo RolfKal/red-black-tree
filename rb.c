@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+ #include <string.h>
 #include "rb.h"
 
 static void insert_repair(rbtree *rbt, rbnode *current);
@@ -20,7 +21,12 @@ static void destroy(rbtree *rbt, rbnode *node);
  * construction
  * return NULL if out of memory
  */
-rbtree *rb_create(int (*compare)(const void *, const void *), void (*destroy)(void *))
+rbtree *rb_create(int (*compare_func)(const void *, const void *), void (*destroy_func)(void *))
+{
+	return rb_create_ex(0, compare_func, destroy_func);
+}
+
+rbtree *rb_create_ex(size_t extraBytes, int(*compare_func)(const void *, const void *), void(*destroy_func)(void *))
 {
 	rbtree *rbt;
 
@@ -28,8 +34,10 @@ rbtree *rb_create(int (*compare)(const void *, const void *), void (*destroy)(vo
 	if (rbt == NULL)
 		return NULL; /* out of memory */
 
-	rbt->compare = compare;
-	rbt->destroy = destroy;
+	rbt->compare = compare_func;
+	rbt->destroy = destroy_func;
+
+	rbt->extraBytes = extraBytes;
 
 	/* sentinel node nil */
 	rbt->nil.left = rbt->nil.right = rbt->nil.parent = RB_NIL(rbt);
@@ -211,15 +219,21 @@ rbnode *rb_insert(rbtree *rbt, void *data)
 
 	/* replace the termination NIL pointer with the new node pointer */
 
-	current = new_node = (rbnode *) malloc(sizeof(rbnode));
+	current = new_node = (rbnode *) malloc(sizeof(rbnode) + rbt->extraBytes);
 	if (current == NULL)
 		return NULL; /* out of memory */
 
 	current->left = current->right = RB_NIL(rbt);
 	current->parent = parent;
 	current->color = RED;
-	current->data = data;
-	
+	if (rbt->extraBytes) {
+		current->data = (void*)(((char*)current) + sizeof(rbnode));
+		memcpy(current->data, data, rbt->extraBytes);
+	}
+	else {
+		current->data = data;
+	}
+
 	if (parent == RB_ROOT(rbt) || rbt->compare(data, parent->data) < 0)
 		parent->left = current;
 	else
@@ -353,8 +367,13 @@ void *rb_delete(rbtree *rbt, rbnode *node, int keep)
 	} else {
 		target = rb_successor(rbt, node); /* node->right must not be NIL, thus move down */
 
-		node->data = target->data; /* data swapped */
-
+		/* swap data */
+		if (rbt->extraBytes) {
+			memcpy(node->data, target->data, rbt->extraBytes);
+		}
+		else {
+			node->data = target->data;
+		}
 		#ifdef RB_MIN
 		/* if min == node, then min = successor = node (swapped), thus idle */
 		/* if min == target, then min = successor, which is not the minimal, thus impossible */
@@ -411,7 +430,7 @@ void *rb_delete(rbtree *rbt, rbnode *node, int keep)
 	free(target);
 	
 	/* keep or discard data */
-	if (keep == 0) {
+	if (keep == 0 && rbt->extraBytes == 0) {
 		rbt->destroy(data);
 		data = NULL;
 	}
