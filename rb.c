@@ -430,12 +430,29 @@ void *rb_delete(rbtree *rbt, rbnode *node, int keep)
 	free(target);
 	
 	/* keep or discard data */
-	if (keep == 0 && rbt->extraBytes == 0) {
+	if (keep == 0) {
 		rbt->destroy(data);
 		data = NULL;
 	}
 
 	return data;
+}
+
+void *rb_remove(rbtree *rbt, void *data, int keep)
+{
+	rbnode *node = rb_find(rbt, data);
+	if (node)
+	{
+		if (rbt->extraBytes) {
+			memcpy(data, node->data, rbt->extraBytes);
+			rb_delete(rbt, node, 1);
+		}
+		else {
+			data = rb_delete(rbt, node, keep);
+		}
+		return data;
+	}
+	return NULL;
 }
 
 /*

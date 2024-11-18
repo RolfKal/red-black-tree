@@ -61,6 +61,7 @@ void rb_print(rbtree *rbt, void (*print_func)(void *));
 
 rbnode *rb_insert(rbtree *rbt, void *data);
 void *rb_delete(rbtree *rbt, rbnode *node, int keep);
+void *rb_remove(rbtree *rbt, void *data, int keep);
 
 int rb_check_order(rbtree *rbt, void *min, void *max);
 int rb_check_black_height(rbtree *rbt);
