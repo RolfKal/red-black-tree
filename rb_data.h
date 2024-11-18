@@ -13,6 +13,7 @@ typedef struct {
 mydata *makedata(int key);
 int compare_func(const void *d1, const void *d2);
 void destroy_func(void *d);
+void nodestroy_func(void *d);
 void print_func(void *d);
 void print_char_func(void *d);
 

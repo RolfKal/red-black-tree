@@ -36,6 +36,15 @@ int compare_func(const void *d1, const void *d2)
 		return -1;
 }
 
+void nodestroy_func(void *d)
+{
+	mydata *p;
+
+	assert(d != NULL);
+
+	p = (mydata *)d;
+}
+
 void destroy_func(void *d)
 {
 	mydata *p;
