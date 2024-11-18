@@ -20,7 +20,7 @@ int mu_tests= 0, mu_fails = 0;
 
 int permutation_error = 0;
 
-static rbtree *tree_create();
+static rbtree *tree_create(int intern);
 static rbnode *tree_find(rbtree *rbt, int key);
 static void tree_print(rbtree *rbt);
 static int tree_check(rbtree *rbt);
@@ -30,50 +30,54 @@ static int tree_delete(rbtree *rbt, int key);
 static rbtree *make_black_tree();
 
 static void swap(char *x, char *y);
-static void permute(char *a, int start, int end, void func(char *));
-static void permutation_insert(char *a);
-static void permutation_delete(char *a);
+static void permute(int intern, char *a, size_t start, size_t end, void func(char *));
+static void permutation_insert(int intern, char *a);
+static void permutation_delete(int intern, char *a);
 
-static int unit_test_create();
-static int unit_test_find();
-static int unit_test_successor();
-static int unit_test_atomic_insertion();
-static int unit_test_chain_insertion();
-static int unit_test_atomic_deletion();
-static int unit_test_chain_deletion();
-static int unit_test_permutation_insertion();
-static int unit_test_permutation_deletion();
-static int unit_test_random_insertion_deletion();
+static int unit_test_create(int intern);
+static int unit_test_find(int intern);
+static int unit_test_successor(int intern);
+static int unit_test_atomic_insertion(int intern);
+static int unit_test_chain_insertion(int intern);
+static int unit_test_atomic_deletion(int intern);
+static int unit_test_chain_deletion(int intern);
+static int unit_test_permutation_insertion(int intern);
+static int unit_test_permutation_deletion(int intern);
+static int unit_test_random_insertion_deletion(int intern);
 
-static int unit_test_dup();
+static int unit_test_dup(int intern);
 #ifdef RB_MIN
-static int unit_test_min();
+static int unit_test_min(int intern);
 #endif
 
 void all_tests()
 {
-	mu_test("unit_test_create", unit_test_create());
+	int intern;
+	for (intern = 0; intern < 2; intern++) {
+		printf("--- unit tests with %s data ---\n", intern ? "internalized" : "allocated"); \
+		mu_test("unit_test_create", unit_test_create(intern));
 
-	mu_test("unit_test_find", unit_test_find());
+		mu_test("unit_test_find", unit_test_find(intern));
 
-	mu_test("unit_test_successor", unit_test_successor());
+		mu_test("unit_test_successor", unit_test_successor(intern));
 
-	mu_test("unit_test_atomic_insertion", unit_test_atomic_insertion());
-	mu_test("unit_test_chain_insertion", unit_test_chain_insertion());
+		mu_test("unit_test_atomic_insertion", unit_test_atomic_insertion(intern));
+		mu_test("unit_test_chain_insertion", unit_test_chain_insertion(intern));
 
-	mu_test("unit_test_atomic_deletion", unit_test_atomic_deletion());
-	mu_test("unit_test_chain_deletion", unit_test_chain_deletion());
+		mu_test("unit_test_atomic_deletion", unit_test_atomic_deletion(intern));
+		mu_test("unit_test_chain_deletion", unit_test_chain_deletion(intern));
 
-	mu_test("unit_test_permutation_insertion", unit_test_permutation_insertion());
-	mu_test("unit_test_permutation_deletion", unit_test_permutation_deletion());
+		mu_test("unit_test_permutation_insertion", unit_test_permutation_insertion(intern));
+		mu_test("unit_test_permutation_deletion", unit_test_permutation_deletion(intern));
 
-	mu_test("unit_test_random_insertion_deletion", unit_test_random_insertion_deletion());
+		mu_test("unit_test_random_insertion_deletion", unit_test_random_insertion_deletion(intern));
 
-	mu_test("unit_test_dup", unit_test_dup());
+		mu_test("unit_test_dup", unit_test_dup(intern));
 
-	#ifdef RB_MIN
-	mu_test("unit_test_min", unit_test_min());
-	#endif
+#ifdef RB_MIN
+		mu_test("unit_test_min", unit_test_min(intern));
+#endif
+	}
 }
 
 int main(int argc, char **argv)
@@ -89,9 +93,9 @@ int main(int argc, char **argv)
 	}
 }
 
-rbtree *tree_create()
+rbtree *tree_create(int intern)
 {
-	return rb_create(compare_func, destroy_func);
+	return rb_create_ex(intern ? sizeof(mydata) : 0, compare_func, intern ? nodestroy_func : destroy_func);
 }
 
 rbnode *tree_find(rbtree *rbt, int key)
@@ -138,7 +142,14 @@ rbnode *tree_insert(rbtree *rbt, int key)
 		return NULL;
 	}
 	
-	if ((data = makedata(key)) == NULL || (node = rb_insert(rbt, data)) == NULL) {
+	if (rbt->extraBytes) {
+		data = (mydata *)&key;
+	}
+	else {
+		data = makedata(key);
+	}
+
+	if (data == NULL || (node = rb_insert(rbt, data)) == NULL) {
 		fprintf(stdout, "tree_insert: insert %d failed\n", key);
 		free(data);
 		return NULL;
@@ -174,28 +185,28 @@ void swap(char *x, char *y)
 	*y = temp;
 }
 
-void permute(char *a, int start, int end, void func(char *))
+void permute(int intern, char *a, size_t start, size_t end, void func(int, char *))
 {
+	size_t i;
 	if (start == end) {
-		func(a);
+		func(intern, a);
 		return;
 	}
 
-	int i;
 	for (i = start; i <= end; i++) {
 		swap(a + start, a + i);
-		permute(a, start + 1, end, func);
+		permute(intern, a, start + 1, end, func);
 		swap(a + start, a + i);
 	}
 }
 
-void permutation_insert(char *a)
+void permutation_insert(int intern, char *a)
 {
 	rbtree *rbt;
 	rbnode *node;
-	int i;
+	size_t i;
 	
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		permutation_error++;
 		return;
@@ -212,13 +223,13 @@ void permutation_insert(char *a)
 	rb_destroy(rbt);
 }
 
-void permutation_delete(char *a)
+void permutation_delete(int intern, char *a)
 {
 	rbtree *rbt;
 	rbnode *node;
-	int i;
+	size_t i;
 	
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		permutation_error++;
 		return;
@@ -246,16 +257,16 @@ void permutation_delete(char *a)
 }
 
 
-rbtree *make_black_tree()
+rbtree *make_black_tree(int intern)
 {
 	rbtree *rbt;
 	rbnode *node;
 	char a[] = "ABCDEFGHIJ";
 	char b[] = "ACJ";
 	char c[] = "BDEFGHI";
-	int i, n;
+	size_t i, n;
 
-	if ((rbt = tree_create()) == NULL)
+	if ((rbt = tree_create(intern)) == NULL)
 		goto err0;
 
 	n = strlen(a);
@@ -298,17 +309,18 @@ err0:
 	return NULL;
 }
 
-int unit_test_create()
+int unit_test_create(int intern)
 {
 	rbtree *rbt;
 
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		return 0;
 	}
 
 	if (rbt->compare != compare_func || \
-		rbt->destroy != destroy_func || \
+		rbt->destroy != destroy_func &&
+		rbt->destroy != nodestroy_func || \
 		rbt->nil.left != RB_NIL(rbt) || \
 		rbt->nil.right != RB_NIL(rbt) || \
 		rbt->nil.parent != RB_NIL(rbt) || \
@@ -328,12 +340,12 @@ int unit_test_create()
 	return 1;
 }
 
-int unit_test_find()
+int unit_test_find(int intern)
 {
 	rbtree *rbt;
 	rbnode *r, *e, *d, *s, *o, *x, *c, *u, *b, *t;
 	
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		goto err0;
 	}
@@ -376,12 +388,12 @@ err0:
 	return 0;
 }
 
-int unit_test_successor()
+int unit_test_successor(int intern)
 {
 	rbtree *rbt;
 	rbnode *r, *e, *d, *s, *o, *x, *c, *u, *b, *t;
 	
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		goto err0;
 	}
@@ -424,7 +436,7 @@ err0:
 	return 0;
 }
 
-int unit_test_atomic_insertion()
+int unit_test_atomic_insertion(int intern)
 {
 	rbtree *rbt;
 	int i, j;
@@ -469,7 +481,7 @@ int unit_test_atomic_insertion()
 	};
 	
 	for (i = 0; i < sizeof(cs) / sizeof(cs[0]); i++) {
-		if ((rbt = tree_create()) == NULL) {
+		if ((rbt = tree_create(intern)) == NULL) {
 			fprintf(stdout, "%s - create red-black tree failed\n", name[i]);
 			goto err0;
 		}
@@ -492,7 +504,7 @@ err0:
 	return 0;
 }
 
-int unit_test_chain_insertion()
+int unit_test_chain_insertion(int intern)
 {
 	rbtree *rbt;
 	int i, j;
@@ -501,8 +513,8 @@ int unit_test_chain_insertion()
 	int a2[] = {16, 8, 24, 4, 12, 20, 32, 2, 6, 10, 14, 18, 22, 28, 40};
 	
 	for (i = 0; i < sizeof(a1) / sizeof(a1[0]); i++) {
-		if ((rbt = tree_create()) == NULL) {
-			fprintf(stdout, "create red-black tree failed\n", i);
+		if ((rbt = tree_create(intern)) == NULL) {
+			fprintf(stdout, "create red-black tree failed: %d\n", i);
 			goto err0;
 		}
 
@@ -529,7 +541,7 @@ err0:
 	return 0;
 }
 
-int unit_test_atomic_deletion()
+int unit_test_atomic_deletion(int intern)
 {
 	rbtree *rbt;
 	int i, j;
@@ -585,7 +597,7 @@ int unit_test_atomic_deletion()
 	};
 
 	for (i = 0; i < sizeof(cs) / sizeof(cs[0]); i++) {
-		if ((rbt = tree_create()) == NULL) {
+		if ((rbt = tree_create(intern)) == NULL) {
 			fprintf(stdout, "%s - create red-black tree failed\n", name[i]);
 			goto err0;
 		}
@@ -615,15 +627,15 @@ err0:
 	return 0;
 }
 
-int unit_test_chain_deletion()
+int unit_test_chain_deletion(int intern)
 {
 	rbtree *rbt;
 	char a[] = "BEGI";
-	int i, n;
+	size_t i, n;
 
 	n = strlen(a);
 	for (i = 0; i < n; i++) {
-		if ((rbt = make_black_tree()) == NULL) {
+		if ((rbt = make_black_tree(intern)) == NULL) {
 			fprintf(stdout, "make black tree failed\n");
 			goto err;
 		}
@@ -644,31 +656,31 @@ err:
 	return 0;
 }
 
-int unit_test_permutation_insertion()
+int unit_test_permutation_insertion(int intern)
 {
 	char a[] = CHARS;
 	
 	permutation_error = 0;
-	permute(a, 0, strlen(a) - 1, permutation_insert);
+	permute(intern, a, 0, strlen(a) - 1, permutation_insert);
 	return (permutation_error == 0);
 }
 
-int unit_test_permutation_deletion()
+int unit_test_permutation_deletion(int intern)
 {
 	char a[] = CHARS;
 	
 	permutation_error = 0;
-	permute(a, 0, strlen(a) - 1, permutation_delete);
+	permute(intern, a, 0, strlen(a) - 1, permutation_delete);
 	return (permutation_error == 0);
 }
 
-int unit_test_random_insertion_deletion()
+int unit_test_random_insertion_deletion(int intern)
 {
 	rbtree *rbt;
 	int ninsert, ndelete;
 	int i, key, max;
 	
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		goto err0;
 	}
@@ -713,11 +725,11 @@ err0:
 }
 
 #ifdef RB_MIN
-int unit_test_min()
+int unit_test_min(int intern)
 {
 	rbtree *rbt;
 
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		goto err0;
 	}
@@ -744,12 +756,12 @@ err0:
 }
 #endif
 
-int unit_test_dup()
+int unit_test_dup(int intern)
 {
 	rbtree *rbt;
 	rbnode *n1, *n2;
 
-	if ((rbt = tree_create()) == NULL) {
+	if ((rbt = tree_create(intern)) == NULL) {
 		fprintf(stdout, "create red-black tree failed\n");
 		goto err0;
 	}
